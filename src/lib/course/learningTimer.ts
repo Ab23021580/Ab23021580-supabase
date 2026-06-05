@@ -1,11 +1,14 @@
 import { authFetch } from '$lib/supabase/auth';
 
-export async function startLearningSession(contentUrl: string) {
+export async function startLearningSession(contentUrl: string, quizId?: string) {
 	try {
+		const body: Record<string, unknown> = { contentUrl };
+		if (quizId) body.quizId = quizId;
+
 		const response = await authFetch('/api/learning-sessions', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ contentUrl })
+			body: JSON.stringify(body)
 		});
 
 		if (!response.ok) return null;

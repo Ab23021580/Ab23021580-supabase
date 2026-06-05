@@ -132,10 +132,7 @@ SELECT
   chapter.id,
   lesson.title,
   CASE WHEN lesson.lesson_type IN ('播放','情境','觀念','補充') THEN 'text' ELSE 'simulation' END,
-  CASE
-    WHEN lesson.chapter_key = '1-1.2' THEN '/1-1/1-1.2'
-    ELSE '/' || lesson.chapter_key
-  END,
+  '/' || lesson.chapter_key,
   jsonb_build_object(
     'source', 'curriculum_outline',
     'type', lesson.lesson_type,

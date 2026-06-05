@@ -1,40 +1,96 @@
 <script lang="ts">
 	import { uiTheme } from '../../../uiTheme.svelte';
+	import type { QuizItem } from '../../../types';
 
-	let { contentText, isQuizCorrect = $bindable(false) }: { contentText: string, isQuizCorrect: boolean } = $props();
+	let {
+		contentText,
+		quizConfig,
+		quizLayout,
+		isQuizCorrect = $bindable(false)
+	}: {
+		contentText?: string;
+		quizConfig?: QuizItem | QuizItem[];
+		quizLayout?: 'table';
+		isQuizCorrect: boolean;
+	} = $props();
 
-	let userInput = $state('');
-	let styles = $derived(uiTheme.styles);
-	
-	let quizParts = $derived.by(() => {
-		if (!contentText) return null;
+	let quizItems = $derived.by(() => {
+		if (quizConfig) {
+			return Array.isArray(quizConfig) ? quizConfig : [quizConfig];
+		}
+
+		if (!contentText) return [];
 		const match = contentText.match(/^1\s*(.+?)\s*=\s*(.*)$/);
 		if (match) {
-			return { prefix: '1', answer: match[1].trim(), suffix: ' = ' + match[2].trim() };
+			return [{ prefix: '1', answer: match[1].trim(), suffix: ' = ' + match[2].trim() }];
 		}
-		return null;
+
+		return [];
+	});
+	let userInputs = $state<string[]>([]);
+	let styles = $derived(uiTheme.styles);
+
+	$effect(() => {
+		if (quizItems.length > 0 && userInputs.length !== quizItems.length) {
+			userInputs = quizItems.map(() => '');
+		}
 	});
 
 	$effect(() => {
-		if (quizParts) {
-			isQuizCorrect = (userInput.trim() === quizParts.answer);
+		if (quizItems.length > 0) {
+			isQuizCorrect = quizItems.every((quiz, index) => {
+				return quiz.answer === undefined || (userInputs[index] ?? '').trim() === quiz.answer;
+			});
 		}
 	});
 </script>
 
-{#if quizParts}
-	<div class="p-4 flex flex-col items-center gap-2 animate-in zoom-in-95 duration-300 {styles.quiz}">
-		<div class="flex items-baseline gap-3 text-3xl font-black {styles.text}">
-			<span class="select-none text-xl font-bold">{quizParts.prefix}</span>
-			<input 
-				type="text" 
-				bind:value={userInput}
-				placeholder="???"
-				class="w-32 text-center transition-all py-1 {styles.input}"
-				class:correct={isQuizCorrect}
-			/>
-			<span class="font-bold text-xl select-none">{@html quizParts.suffix}</span>
-		</div>
+{#if quizItems.length > 0}
+	<div class="p-4 animate-in zoom-in-95 duration-300 {styles.quiz}">
+		{#if quizLayout === 'table'}
+			<table class="w-full border-collapse text-xl font-bold {styles.text}">
+				<tbody>
+					{#each quizItems as quiz, index}
+						<tr class="border-b border-black/10 last:border-0">
+							<td class="py-2 pr-3 whitespace-nowrap">
+								{#if quiz.answer !== undefined}
+									<input
+										type="text"
+										bind:value={userInputs[index]}
+										placeholder="???"
+										class="w-24 text-center transition-all py-1 {styles.input}"
+										class:correct={(userInputs[index] ?? '').trim() === quiz.answer}
+									/>
+								{/if}
+							</td>
+							{#each quiz.suffix.split('|') as cell}
+								<td class="py-2 pr-4 font-normal text-lg whitespace-nowrap">{@html cell}</td>
+							{/each}
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{:else}
+			<div class="flex flex-col items-center gap-3">
+				{#each quizItems as quiz, index}
+					<div class="flex items-baseline gap-3 text-3xl font-black {styles.text}">
+						{#if quiz.prefix}
+							<span class="select-none text-xl font-bold">{quiz.prefix}</span>
+						{/if}
+						{#if quiz.answer !== undefined}
+							<input
+								type="text"
+								bind:value={userInputs[index]}
+								placeholder="???"
+								class="w-32 text-center transition-all py-1 {styles.input}"
+								class:correct={(userInputs[index] ?? '').trim() === quiz.answer}
+							/>
+						{/if}
+						<span class="font-bold text-xl select-none">{@html quiz.suffix}</span>
+					</div>
+				{/each}
+			</div>
+		{/if}
 	</div>
 {/if}
 

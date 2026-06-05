@@ -6,10 +6,26 @@ export const POST: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
 	const body = await request.json().catch(() => ({}));
 	const lessonId = typeof body.lessonId === 'string' ? body.lessonId : '';
+	const quizId = typeof body.quizId === 'string' ? body.quizId : '';
 	const contentUrl = typeof body.contentUrl === 'string' ? body.contentUrl : '';
 
-	if (!lessonId && !contentUrl) {
-		throw error(400, 'lessonId 或 contentUrl 是必填欄位');
+	if (!lessonId && !contentUrl && !quizId) {
+		throw error(400, 'lessonId, contentUrl 或 quizId 是必填欄位');
+	}
+
+	if (quizId) {
+		const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+		if (!quiz) throw error(404, '找不到測驗');
+
+		const session = await prisma.learningSession.create({
+			data: {
+				userId: user.id,
+				quizId: quiz.id,
+				startTime: new Date()
+			}
+		});
+
+		return json({ session }, { status: 201 });
 	}
 
 	const lesson = lessonId

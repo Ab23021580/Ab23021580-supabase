@@ -2,13 +2,12 @@
 	import type { CourseState } from '../../../courseState.svelte';
 	import RulerBase from './RulerBase.svelte';
 	import RulerInteraction from './RulerInteraction.svelte';
-
-	import PixelButton from '../../PixelButton.svelte';
-
-	import { uiTheme } from '../../../uiTheme.svelte';
+	import { authFetch } from '$lib/supabase/auth';
 
 	let { 
 		courseState, 
+		contentUrl,
+		completeOnServer = true,
 		currentDistance = $bindable(0), 
 		accumulatedPulls = $bindable(0),
 		isActionCorrect = $bindable(false),
@@ -16,16 +15,17 @@
 		onCorrect 
 	}: { 
 		courseState: CourseState, 
+		contentUrl: string,
+		completeOnServer?: boolean,
 		currentDistance: number, 
 		accumulatedPulls: number,
 		isActionCorrect: boolean,
 		resetTrigger?: number,
-		onCorrect: () => void 
+		onCorrect: (options?: { skipProgressSync?: boolean }) => void 
 	} = $props();
 
 	let currentStage = $derived(courseState.currentStage);
 	let config = $derived(currentStage.simulator?.config);
-	let styles = $derived(uiTheme.styles);
 
 	const pxPerMm = 4;
 	const pxPerCm = 40;
@@ -34,6 +34,7 @@
 	const offsetX = 50; 
 
 	let isDragging = $state(false);
+	let isSubmitting = $state(false);
 	let currentMm = $state(0);
 	let startMm = $state(0);
 	let pullHistory = $state<{startMm: number, currentMm: number}[]>([]);
@@ -43,10 +44,6 @@
 
 	$effect(() => {
 		currentDistance = Math.abs(currentMm - startMm) / 10;
-		if (currentStage.simulator?.id === 'RULER_DRAG' || currentStage.simulator?.id === 'RULER_DRAG_PRECISION') {
-			const target = config?.target ?? 0;
-			isActionCorrect = Math.abs(currentDistance - target) <= 0.051;
-		}
 	});
 
 	$effect(() => {
@@ -81,10 +78,6 @@
 		if (!isDragging) startMm = xMm;
 		currentMm = xMm;
 
-		if (currentStage.simulator?.id === 'RULER_DRAG_ACCUMULATE' && isDragging) {
-			const targetDist = config?.target ?? 20;
-			if (currentDistance >= targetDist) completeCurrentPull();
-		}
 	}
 
 	function completeCurrentPull() {
@@ -92,8 +85,11 @@
 		pullHistory.push({ startMm, currentMm });
 		accumulatedPulls++;
 		if (accumulatedPulls >= (config?.pulls ?? 5)) {
-			isActionCorrect = true;
-			onCorrect();
+			void submitAction({
+				type: 'ruler_accumulate',
+				distance: currentDistance,
+				pulls: accumulatedPulls
+			});
 		} else {
 			reset(false);
 		}
@@ -114,10 +110,57 @@
 		handleInput(clientX, e.currentTarget as SVGElement);
 	}
 
+	function onPointerEnd() {
+		if (!isDragging) return;
+		isDragging = false;
+
+		if (
+			currentStage.simulator?.id === 'RULER_DRAG' ||
+			currentStage.simulator?.id === 'RULER_DRAG_PRECISION'
+		) {
+			void submitAction({
+				type: 'ruler_drag',
+				distance: currentDistance
+			});
+		} else if (currentStage.simulator?.id === 'RULER_DRAG_ACCUMULATE') {
+			completeCurrentPull();
+		}
+	}
+
 	function handleStaticClick() {
 		if (currentStage.simulator?.id === 'RULER_STATIC') {
-			isActionCorrect = true;
-			onCorrect(); 
+			void submitAction({
+				type: 'static_click'
+			});
+		}
+	}
+
+	async function submitAction(action: { type: string; value?: number; distance?: number; pulls?: number }) {
+		if (isSubmitting || courseState.isUnlocked(currentStage.id)) return;
+		isSubmitting = true;
+
+		try {
+			const response = await authFetch('/api/simulator/action', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					contentUrl,
+					stageId: currentStage.id,
+					legacyLessonId: currentStage.id,
+					simulatorId: currentStage.simulator?.id,
+					completeLesson: completeOnServer,
+					action
+				})
+			});
+
+			if (!response.ok) return;
+			const result = await response.json();
+			if (result.correct) {
+				isActionCorrect = true;
+				onCorrect({ skipProgressSync: completeOnServer });
+			}
+		} finally {
+			isSubmitting = false;
 		}
 	}
 </script>
@@ -145,11 +188,11 @@
 		preserveAspectRatio="xMidYMid meet"
 		onmousedown={onPointerDown}
 		onmousemove={onPointerMove}
-		onmouseup={() => (isDragging = false)}
-		onmouseleave={() => (isDragging = false)}
+		onmouseup={onPointerEnd}
+		onmouseleave={onPointerEnd}
 		ontouchstart={onPointerDown}
 		ontouchmove={onPointerMove}
-		ontouchend={() => (isDragging = false)}
+		ontouchend={onPointerEnd}
 		class="cursor-pointer select-none"
 		class:pointer-events-none={courseState.isUnlocked(currentStage.id) && currentStage.simulator?.id !== 'RULER_STATIC'}
 		role="application"

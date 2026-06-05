@@ -9,16 +9,67 @@
 
 	import PixelButton from './PixelButton.svelte';
 
+	const SIMULATORS: Record<string, () => Promise<{ default: any }>> = {
+		MULTI_RULER_CLICK: () => import('./simulators/MultiRulerSimulator.svelte'),
+		PENCIL_RULER: () => import('./simulators/PencilRulerSimulator.svelte'),
+		MATCH_DIAGRAM: () => import('./simulators/MatchDiagramSimulator.svelte'),
+		AVERAGE_SIMULATOR: () => import('./simulators/AverageSimulator.svelte'),
+		CROW_STONE_SIMULATOR: () => import('./simulators/CrowStoneSimulator.svelte'),
+		WATER_DROP_SIMULATOR: () => import('./simulators/WaterDropSimulator.svelte'),
+		LITER_BOX_SIMULATOR: () => import('./simulators/LiterBoxSimulator.svelte'),
+		KILO_LITER_SIMULATOR: () => import('./simulators/KiloLiterSimulator.svelte'),
+		GRAD_CYLINDER_SIMULATOR: () => import('./simulators/GradCylinderSimulator.svelte'),
+		EYE_LEVEL_SIMULATOR: () => import('./simulators/EyeLevelSimulator.svelte'),
+		DINO_ASSEMBLE_SIMULATOR: () => import('./simulators/DinoAssembleSimulator.svelte'),
+		DINO_MASS_SIMULATOR: () => import('./simulators/DinoMassSimulator.svelte'),
+		DINO_WEIGHT_SIMULATOR: () => import('./simulators/DinoWeightSimulator.svelte'),
+		DINO_SCALAR_VECTOR_SIMULATOR: () => import('./simulators/DinoScalarVectorSimulator.svelte'),
+		LESSON_122_A1: () => import('./simulators/1-2.2/A1Simulator.svelte'),
+		LESSON_122_A2: () => import('./simulators/1-2.2/A2Simulator.svelte'),
+		LESSON_122_A3: () => import('./simulators/1-2.2/A3Simulator.svelte'),
+		LESSON_122_A4: () => import('./simulators/1-2.2/A4Simulator.svelte'),
+		LESSON_122_B1: () => import('./simulators/1-2.2/B1Simulator.svelte'),
+		LESSON_123_A: () => import('./simulators/1-2.3/ASimulator.svelte'),
+		LESSON_123_A1: () => import('./simulators/1-2.3/A1Simulator.svelte'),
+		LESSON_123_A2: () => import('./simulators/1-2.3/A2Simulator.svelte'),
+		LESSON_123_A3: () => import('./simulators/1-2.3/A3Simulator.svelte'),
+		LESSON_123_A4: () => import('./simulators/1-2.3/A4Simulator.svelte'),
+		LESSON_123_A2A3A4: () => import('./simulators/1-2.3/A2A3A4Simulator.svelte'),
+		LESSON_131_A: () => import('./simulators/1-3.1/ASimulator.svelte'),
+		LESSON_131_A1: () => import('./simulators/1-3.1/A1Simulator.svelte'),
+		LESSON_131_A2: () => import('./simulators/1-3.1/A2Simulator.svelte'),
+		LESSON_131_A3: () => import('./simulators/1-3.1/A3Simulator.svelte'),
+		LESSON_132_A: () => import('./simulators/1-3.2/ASimulator.svelte'),
+		LESSON_132_A1: () => import('./simulators/1-3.2/A1Simulator.svelte'),
+		LESSON_132_A2: () => import('./simulators/1-3.2/A2Simulator.svelte'),
+		LESSON_132_A2XA1: () => import('./simulators/1-3.2/A2XA1Simulator.svelte'),
+		LESSON_132_A3: () => import('./simulators/1-3.2/A3Simulator.svelte'),
+		LESSON_132_B: () => import('./simulators/1-3.2/BSimulator.svelte'),
+		LESSON_132_B1: () => import('./simulators/1-3.2/B1Simulator.svelte'),
+		LESSON_132_B2: () => import('./simulators/1-3.2/B2Simulator.svelte'),
+		LESSON_133_A: () => import('./simulators/1-3.3/ASimulator.svelte'),
+		LESSON_133_A1: () => import('./simulators/1-3.3/A1Simulator.svelte'),
+		LESSON_133_A2: () => import('./simulators/1-3.3/A2Simulator.svelte'),
+		LESSON_133_B: () => import('./simulators/1-3.3/BSimulator.svelte'),
+		LESSON_133_B1: () => import('./simulators/1-3.3/B1Simulator.svelte'),
+		LESSON_133_B2: () => import('./simulators/1-3.3/B2Simulator.svelte'),
+		LESSON_133_B2XB1: () => import('./simulators/1-3.3/B2XB1Simulator.svelte')
+	};
+
+	const STATIC_SIMULATOR_IDS = new Set(['STATIC_IMAGE', 'IMAGE_CROW_WATER', 'IMAGE_MASS_WEIGHT']);
+
 	let { 
 		courseState, 
+		contentUrl,
 		currentDistance = $bindable(0), 
 		accumulatedPulls = $bindable(0),
 		onCorrect 
 	}: { 
 		courseState: CourseState, 
+		contentUrl: string,
 		currentDistance: number, 
 		accumulatedPulls: number,
-		onCorrect: () => void 
+		onCorrect: (options?: { skipProgressSync?: boolean }) => void 
 	} = $props();
 
 	let currentStage = $derived(courseState.currentStage);
@@ -28,6 +79,27 @@
 	let isQuizCorrect = $state(false);
 	let showQuizDelayed = $state(false);
 	let resetTrigger = $state(0);
+	let ActiveSimulator = $state<any>(null);
+	let hasInlineQuiz = $derived.by(() => {
+		if (currentStage.quiz) return true;
+		return /^1\s*(.+?)\s*=/.test(currentStage.contentText ?? '');
+	});
+
+	$effect(() => {
+		const simId = currentStage?.simulator?.id;
+		ActiveSimulator = null;
+
+		if (simId && SIMULATORS[simId]) {
+			SIMULATORS[simId]().then((module) => {
+				if (courseState.currentStage?.simulator?.id === simId) {
+					ActiveSimulator = module.default;
+				}
+			});
+
+			const nextId = courseState.lessons[courseState.currentStageIndex + 1]?.simulator?.id;
+			if (nextId && SIMULATORS[nextId]) void SIMULATORS[nextId]();
+		}
+	});
 
 	$effect(() => {
 		if (currentStage.id) {
@@ -35,7 +107,11 @@
 			isQuizCorrect = false;
 			showQuizDelayed = false;
 
-			if (currentStage.simContent || currentStage.simulator?.id === 'QUIZ_UNIT') {
+			if (
+				currentStage.simContent ||
+				!currentStage.simulator ||
+				STATIC_SIMULATOR_IDS.has(currentStage.simulator.id)
+			) {
 				isActionCorrect = true;
 			}
 		}
@@ -53,7 +129,11 @@
 	});
 
 	$effect(() => {
-		if (isActionCorrect && isQuizCorrect && !courseState.isUnlocked(currentStage.id)) {
+		if (
+			isActionCorrect &&
+			(isQuizCorrect || (!hasInlineQuiz && showQuizDelayed)) &&
+			!courseState.isUnlocked(currentStage.id)
+		) {
 			onCorrect();
 		}
 	});
@@ -79,34 +159,40 @@
 				{#if currentStage.simulator.id.startsWith('RULER')}
 					<RulerSimulator 
 						courseState={courseState} 
+						{contentUrl}
+						completeOnServer={!hasInlineQuiz}
 						bind:currentDistance 
 						bind:accumulatedPulls 
 						bind:isActionCorrect
 						{resetTrigger}
-						onCorrect={() => (isActionCorrect = true)} 
+						onCorrect={(options) => {
+							isActionCorrect = true;
+							if (options?.skipProgressSync && !hasInlineQuiz) onCorrect(options);
+						}} 
 					/>
-					
-					{#if showQuizDelayed && !courseState.isUnlocked(currentStage.id)}
-						<div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 w-auto">
-							<QuizInput 
-								contentText={currentStage.contentText} 
-								bind:isQuizCorrect
-							/>
-						</div>
-					{/if}
 
 				{:else if currentStage.simulator.id === 'QUIZ_UNIT'}
 					{#if !currentStage.simContent}
 						<QuizSimulator courseState={courseState} onCorrect={onCorrect} />
-					{:else if showQuizDelayed && !courseState.isUnlocked(currentStage.id)}
-						<div class="flex justify-center mt-4 pb-8">
-							<QuizInput 
-								contentText={currentStage.contentText} 
-								bind:isQuizCorrect
-							/>
-						</div>
 					{/if}
+				{:else if ActiveSimulator}
+					<svelte:component
+						this={ActiveSimulator}
+						{courseState}
+						onCorrect={() => (isActionCorrect = true)}
+					/>
 				{/if}
+			{/if}
+
+			{#if showQuizDelayed && !courseState.isUnlocked(currentStage.id) && hasInlineQuiz}
+				<div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 w-auto">
+					<QuizInput 
+						quizConfig={currentStage.quiz}
+						quizLayout={currentStage.quizLayout}
+						contentText={currentStage.contentText} 
+						bind:isQuizCorrect
+					/>
+				</div>
 			{/if}
 		</div>
 	{/key}

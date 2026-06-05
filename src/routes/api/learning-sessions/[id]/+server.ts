@@ -22,7 +22,10 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	}
 
 	const endTime = new Date();
-	const duration = Math.max(0, Math.round((endTime.getTime() - existing.startTime.getTime()) / 1000));
+	const duration = Math.max(
+		0,
+		Math.round((endTime.getTime() - existing.startTime.getTime()) / 1000)
+	);
 
 	const session = await prisma.learningSession.update({
 		where: { id },
@@ -32,15 +35,17 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 		}
 	});
 
-	await prisma.userProgress.updateMany({
-		where: {
-			userId: user.id,
-			lessonId: existing.lessonId
-		},
-		data: {
-			lastAccessedAt: endTime
-		}
-	});
+	if (existing.lessonId) {
+		await prisma.userProgress.updateMany({
+			where: {
+				userId: user.id,
+				lessonId: existing.lessonId
+			},
+			data: {
+				lastAccessedAt: endTime
+			}
+		});
+	}
 
 	return json({ session });
 };

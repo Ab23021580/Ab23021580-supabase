@@ -9,6 +9,12 @@ export interface SimulatorConfig {
 	[key: string]: any;
 }
 
+export interface QuizItem {
+	prefix: string;
+	answer?: string;
+	suffix: string;
+}
+
 export interface Lesson {
 	id: string;
 	fullId?: string;
@@ -19,7 +25,10 @@ export interface Lesson {
 		config: SimulatorConfig;
 	};
 	simContent?: string;
+	quiz?: QuizItem | QuizItem[];
+	quizLayout?: 'table';
 	contentText: string;
+	next_id?: string;
 }
 
 export interface CourseData {

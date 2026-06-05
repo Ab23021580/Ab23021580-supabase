@@ -95,6 +95,7 @@ model Quiz {
   chapter      Chapter      @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   questions    Question[]
   userAnswers  UserAnswer[]
+  learningSessions LearningSession[]
 
   @@index([chapterId])
   @@map("quizzes")
@@ -142,14 +143,17 @@ model UserProgress {
 model LearningSession {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
-  lessonId  String    @map("lesson_id") @db.Uuid
+  lessonId  String?   @map("lesson_id") @db.Uuid
+  quizId    String?   @map("quiz_id") @db.Uuid
   startTime DateTime  @map("start_time") @db.Timestamp(6)
   endTime   DateTime? @map("end_time") @db.Timestamp(6)
   duration  Int?
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  lesson    Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson    Lesson?   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  quiz      Quiz?     @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
   @@index([lessonId])
+  @@index([quizId])
   @@index([userId])
   @@map("learning_sessions")
 }

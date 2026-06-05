@@ -146,6 +146,44 @@ export async function signUpWithPassword(email: string, password: string, rememb
 	return session;
 }
 
+export function signInWithGoogle() {
+	if (typeof window === 'undefined') return;
+
+	const redirectUrl = `${window.location.origin}/login`;
+	window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(
+		redirectUrl
+	)}`;
+}
+
+export async function handleOAuthCallback() {
+	if (typeof window === 'undefined') return false;
+
+	const hash = window.location.hash;
+	if (!hash) return false;
+
+	const params = new URLSearchParams(hash.slice(1));
+	const error = params.get('error_description') || params.get('error');
+	if (error) {
+		window.history.replaceState(null, '', window.location.pathname);
+		throw new Error(error);
+	}
+
+	const accessToken = params.get('access_token');
+	if (!accessToken) return false;
+
+	const session: SupabaseAuthSession = {
+		access_token: accessToken,
+		refresh_token: params.get('refresh_token') || undefined,
+		expires_in: Number(params.get('expires_in') || 0) || undefined,
+		token_type: params.get('token_type') || undefined
+	};
+
+	persistSession(session, true);
+	window.history.replaceState(null, '', window.location.pathname);
+	await ensureProfile();
+	return true;
+}
+
 export async function signOut() {
 	const session = getStoredSession();
 

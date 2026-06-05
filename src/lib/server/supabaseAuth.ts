@@ -22,17 +22,21 @@ function readBearerToken(request: Request) {
 
 export async function getSupabaseUser(request: Request) {
 	const token = readBearerToken(request);
-	if (!token) return null;
+	if (!token || token === 'mock-access-token') return null;
 
-	const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-		headers: {
-			apikey: supabaseKey,
-			Authorization: `Bearer ${token}`
-		}
-	});
+	try {
+		const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+			headers: {
+				apikey: supabaseKey,
+				Authorization: `Bearer ${token}`
+			}
+		});
 
-	if (!response.ok) return null;
-	return (await response.json()) as SupabaseUser;
+		if (!response.ok) return null;
+		return (await response.json()) as SupabaseUser;
+	} catch (err) {
+		return null;
+	}
 }
 
 export async function requireSupabaseUser(request: Request) {

@@ -20,6 +20,8 @@
 	<div class="max-w-2xl w-full flex flex-col items-center gap-8">
 		<!-- 這裡是核心問答，直接使用 QuizInput 以確保樣式 100% 相同 -->
 		<QuizInput 
+			quizConfig={currentStage.quiz}
+			quizLayout={currentStage.quizLayout}
 			contentText={currentStage.contentText} 
 			bind:isQuizCorrect
 		/>
