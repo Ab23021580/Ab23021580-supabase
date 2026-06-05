@@ -1,13 +1,15 @@
 import { error, json, type RequestHandler } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
 import { requireSupabaseUser } from '$lib/server/supabaseAuth';
+import { validateLessonOrQuizId, validateContentUrl } from '$lib/server/validation';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
 	const body = await request.json().catch(() => ({}));
-	const lessonId = typeof body.lessonId === 'string' ? body.lessonId : '';
-	const quizId = typeof body.quizId === 'string' ? body.quizId : '';
-	const contentUrl = typeof body.contentUrl === 'string' ? body.contentUrl : '';
+	
+	const lessonId = body.lessonId ? validateLessonOrQuizId(body.lessonId, 'lessonId') : '';
+	const quizId = body.quizId ? validateLessonOrQuizId(body.quizId, 'quizId') : '';
+	const contentUrl = body.contentUrl ? validateContentUrl(body.contentUrl, 'contentUrl') : '';
 
 	if (!lessonId && !contentUrl && !quizId) {
 		throw error(400, 'lessonId, contentUrl 或 quizId 是必填欄位');

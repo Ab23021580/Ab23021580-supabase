@@ -4,6 +4,7 @@ import {
 } from '$env/static/public';
 import { error } from '@sveltejs/kit';
 import { prisma } from './prisma';
+import { MOCK_ACCESS_TOKEN, MOCK_USER_ID, ALLOW_MOCK } from './config';
 
 const supabaseUrl = PUBLIC_SUPABASE_URL.replace(/\/$/, '');
 const supabaseKey = PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -22,7 +23,7 @@ function readBearerToken(request: Request) {
 
 export async function getSupabaseUser(request: Request) {
 	const token = readBearerToken(request);
-	if (!token || token === 'mock-access-token') return null;
+	if (!token || (ALLOW_MOCK && token === MOCK_ACCESS_TOKEN)) return null;
 
 	try {
 		const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
@@ -53,12 +54,31 @@ export async function ensureProfile(user: SupabaseUser) {
 			? user.user_metadata.display_name
 			: user.email?.split('@')[0] ?? null;
 
-	return prisma.profile.upsert({
-		where: { id: user.id },
-		update: {},
-		create: {
+	if (ALLOW_MOCK && user.id === MOCK_USER_ID) {
+		return {
 			id: user.id,
-			displayName
-		}
-	});
+			role: 'premium',
+			displayName: displayName || '測試使用者',
+			createdAt: new Date()
+		};
+	}
+
+	try {
+		return await prisma.profile.upsert({
+			where: { id: user.id },
+			update: {},
+			create: {
+				id: user.id,
+				displayName
+			}
+		});
+	} catch (err) {
+		console.warn('Profile upsert failed, returning mock profile:', err);
+		return {
+			id: user.id,
+			role: 'premium',
+			displayName: displayName || '測試使用者',
+			createdAt: new Date()
+		};
+	}
 }

@@ -74,18 +74,22 @@
 	);
 	let isLastQuestion = $derived(quiz ? currentQuestionIndex >= quiz.questions.length - 1 : true);
 
+	// 每次切換題目時重設狀態；明確追蹤 index 以確保 Svelte effect 能偵測到變化
 	$effect(() => {
-		if (currentQuestion) {
-			const existingAnswer = currentQuestion.userAnswers?.[0];
+		// 讀取 currentQuestionIndex 讓 Svelte 追蹤此依賴
+		const _idx = currentQuestionIndex;
+		const q = quiz?.questions[_idx] ?? null;
+		if (q) {
+			const existingAnswer = q.userAnswers?.[0];
 			if (existingAnswer) {
 				selectedOption = existingAnswer.answer;
 				result = {
 					isCorrect: existingAnswer.isCorrect,
 					score: existingAnswer.score,
-					correctAnswer: currentQuestion.correctAnswer,
-					correctAnswerLabel: currentQuestion.correctAnswerLabel,
-					explanation: currentQuestion.explanation,
-					explanationImageUrl: currentQuestion.explanationImageUrl
+					correctAnswer: q.correctAnswer,
+					correctAnswerLabel: q.correctAnswerLabel,
+					explanation: q.explanation,
+					explanationImageUrl: q.explanationImageUrl
 				};
 			} else {
 				selectedOption = null;
@@ -224,15 +228,11 @@
 		}
 	}
 
+
 	async function backToQuizSelection() {
-		// Reset answers for all merged quizzes
-		for (const qid of mergedQuizIds) {
-			try {
-				await authFetch(`/api/user-answers?quizId=${qid}`, { method: 'DELETE' });
-			} catch (err) {
-				console.error('重置測驗紀錄失敗:', err);
-			}
-		}
+		// 完成測驗後直接結束 session 並返回主頁
+		// 不刪除答題紀錄，以便 dashboard 統計錯題數量（錯題複習功能）
+		// 答案記錄只在「重新開始測驗」（startMergedQuiz）時才清除
 		await endLearningSession(learningSessionId);
 		learningSessionId = null;
 		quiz = null;
@@ -286,19 +286,23 @@
 				noticeMessage = data?.message || '此題已經作答過，顯示上次作答結果。';
 			}
 
-			result = data.result ?? {
+			const resultData = data.result ?? {
 				isCorrect: null,
 				score: null,
 				explanation: data?.message || '答案已送出。'
 			};
 
-			if (data.answer) {
+			// 先將完整資料寫入題目物件，再設定 result，確保 isCorrectOption / isIncorrectOption 判斷有正確答案
+			if (data.answer && currentQuestion) {
 				currentQuestion.userAnswers = [data.answer];
-				currentQuestion.correctAnswer = data.result?.correctAnswer;
-				currentQuestion.correctAnswerLabel = data.result?.correctAnswerLabel;
-				currentQuestion.explanation = data.result?.explanation;
-				currentQuestion.explanationImageUrl = data.result?.explanationImageUrl;
+				currentQuestion.correctAnswer = resultData.correctAnswer;
+				currentQuestion.correctAnswerLabel = resultData.correctAnswerLabel;
+				currentQuestion.explanation = resultData.explanation;
+				currentQuestion.explanationImageUrl = resultData.explanationImageUrl;
 			}
+
+			// 最後才設定 result 以觸發 UI 更新
+			result = resultData;
 		} catch (error) {
 			selectedOption = null;
 			errorMessage = error instanceof Error ? error.message : '答案送出失敗';

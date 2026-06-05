@@ -2,6 +2,7 @@ import { error, json, type RequestHandler } from '@sveltejs/kit';
 import { normalizeQuizOptions } from '$lib/quiz/options';
 import { prisma } from '$lib/server/prisma';
 import { requireSupabaseUser } from '$lib/server/supabaseAuth';
+import { validateUuid } from '$lib/server/validation';
 
 function answerToText(answer: unknown) {
 	if (typeof answer === 'string') return answer;
@@ -69,8 +70,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
 
 	const body = await request.json().catch(() => ({}));
-	const questionId = typeof body.questionId === 'string' ? body.questionId : '';
-	const quizId = typeof body.quizId === 'string' ? body.quizId : undefined;
+	const questionId = body.questionId ? validateUuid(body.questionId, 'questionId') : '';
+	const quizId = body.quizId ? validateUuid(body.quizId, 'quizId') : undefined;
 
 	if (!questionId) {
 		throw error(400, 'questionId 是必填欄位');
@@ -151,11 +152,12 @@ export const POST: RequestHandler = async ({ request }) => {
 
 export const DELETE: RequestHandler = async ({ url, request }) => {
 	const user = await requireSupabaseUser(request);
-	const quizId = url.searchParams.get('quizId');
+	const rawQuizId = url.searchParams.get('quizId');
 
-	if (!quizId) {
+	if (!rawQuizId) {
 		throw error(400, 'quizId 是必填欄位');
 	}
+	const quizId = validateUuid(rawQuizId, 'quizId');
 
 	await prisma.userAnswer.deleteMany({
 		where: {
@@ -166,4 +168,3 @@ export const DELETE: RequestHandler = async ({ url, request }) => {
 
 	return json({ message: '測驗紀錄已重置' });
 };
-

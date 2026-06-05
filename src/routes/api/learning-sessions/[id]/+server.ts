@@ -1,6 +1,7 @@
 import { error, json, type RequestHandler } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
 import { requireSupabaseUser } from '$lib/server/supabaseAuth';
+import { validateUuid } from '$lib/server/validation';
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
 	const user = await requireSupabaseUser(request);
@@ -9,6 +10,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	if (!id) {
 		throw error(400, 'session id 是必填欄位');
 	}
+	validateUuid(id, 'session id');
 
 	const existing = await prisma.learningSession.findFirst({
 		where: {

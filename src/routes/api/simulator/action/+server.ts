@@ -1,6 +1,7 @@
 import { error, json, type RequestHandler } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
 import { requireSupabaseUser } from '$lib/server/supabaseAuth';
+import { validateLessonOrQuizId, validateContentUrl } from '$lib/server/validation';
 
 type SimulatorConfig = {
 	id?: string;
@@ -156,14 +157,18 @@ async function markLessonCompleted(userId: string, lessonId: string) {
 export const POST: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
 	const body = await request.json().catch(() => ({}));
-	const lessonId = typeof body.lessonId === 'string' ? body.lessonId : '';
-	const contentUrl = typeof body.contentUrl === 'string' ? body.contentUrl : '';
-	const legacyLessonId =
+	
+	const lessonId = body.lessonId ? validateLessonOrQuizId(body.lessonId, 'lessonId') : '';
+	const contentUrl = body.contentUrl ? validateContentUrl(body.contentUrl, 'contentUrl') : '';
+	
+	const rawLegacyLessonId =
 		typeof body.legacyLessonId === 'string'
 			? body.legacyLessonId
 			: typeof body.stageId === 'string'
 				? body.stageId
 				: '';
+	const legacyLessonId = rawLegacyLessonId ? validateLessonOrQuizId(rawLegacyLessonId, 'legacyLessonId') : '';
+	
 	const action = asRecord(body.action) as SimulatorAction;
 	const completeLesson = body.completeLesson !== false;
 

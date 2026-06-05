@@ -2,6 +2,7 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
 import { requireSupabaseUser } from '$lib/server/supabaseAuth';
 import { normalizeQuizOptions } from '$lib/quiz/options';
+import { validateUuid } from '$lib/server/validation';
 
 function normalizeAnswer(value: unknown): string {
 	if (Array.isArray(value)) {
@@ -47,7 +48,8 @@ function answerLabel(answer: string, options: unknown) {
 export const GET: RequestHandler = async ({ url, request }) => {
 	const user = await requireSupabaseUser(request);
 
-	const chapterId = url.searchParams.get('chapterId') ?? undefined;
+	const rawChapterId = url.searchParams.get('chapterId');
+	const chapterId = rawChapterId ? validateUuid(rawChapterId, 'chapterId') : undefined;
 
 	const quizzes = await prisma.quiz.findMany({
 		where: {

@@ -144,10 +144,17 @@ export async function getLegacyCourses(): Promise<ApiCourse[]> {
 	];
 }
 
+import { sanitizeSqlIdentifier } from './validation';
+
 export async function getLegacyLesson(lessonId: string) {
+	// 嚴格驗證輸入參數，防止 SQL 注入風險
+	sanitizeSqlIdentifier(lessonId);
+
 	const normalizedId = lessonId.startsWith('legacy-')
 		? lessonId.replace(/^legacy-/, '').split('-').slice(2).join('-')
 		: lessonId;
+
+	sanitizeSqlIdentifier(normalizedId);
 
 	const rows = await prisma.$queryRaw<LegacyCourseLesson[]>`
 		select id, chapter_key, sort_order, lesson_id, full_id, lesson_type, question,

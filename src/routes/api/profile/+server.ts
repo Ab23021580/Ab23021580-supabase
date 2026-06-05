@@ -1,6 +1,8 @@
 import { error, json, type RequestHandler } from '@sveltejs/kit';
 import { ensureProfile, requireSupabaseUser } from '$lib/server/supabaseAuth';
 import { prisma } from '$lib/server/prisma';
+import { validateString } from '$lib/server/validation';
+import { MOCK_USER_ID, ALLOW_MOCK } from '$lib/server/config';
 
 export const GET: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
@@ -12,9 +14,13 @@ export const GET: RequestHandler = async ({ request }) => {
 export const POST: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
 	const body = await request.json().catch(() => ({}));
-	const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : undefined;
+	
+	let displayName: string | undefined;
+	if (body.displayName !== undefined) {
+		displayName = validateString(body.displayName, 1, 50, 'displayName');
+	}
 
-	if (user.id === 'd4d1e6d8-9f8d-4fa4-bea1-bcdf04bb9c32') {
+	if (ALLOW_MOCK && user.id === MOCK_USER_ID) {
 		return json({
 			user,
 			profile: {
@@ -40,13 +46,13 @@ export const POST: RequestHandler = async ({ request }) => {
 export const PUT: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
 	const body = await request.json().catch(() => ({}));
-	const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
-
-	if (!displayName) {
+	
+	if (body.displayName === undefined || body.displayName === null) {
 		throw error(400, 'displayName 不可為空');
 	}
+	const displayName = validateString(body.displayName, 1, 50, 'displayName');
 
-	if (user.id === 'd4d1e6d8-9f8d-4fa4-bea1-bcdf04bb9c32') {
+	if (ALLOW_MOCK && user.id === MOCK_USER_ID) {
 		return json({
 			user,
 			profile: {

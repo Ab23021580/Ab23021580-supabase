@@ -1,8 +1,7 @@
 import { error, json, type RequestHandler } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
 import { requireSupabaseUser } from '$lib/server/supabaseAuth';
-
-const validStatuses = new Set(['not_started', 'in_progress', 'completed']);
+import { validateLessonOrQuizId, validateContentUrl, validateStatus } from '$lib/server/validation';
 
 function clampProgress(value: unknown) {
 	const number = typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -34,19 +33,16 @@ export const GET: RequestHandler = async ({ request }) => {
 export const POST: RequestHandler = async ({ request }) => {
 	const user = await requireSupabaseUser(request);
 	const body = await request.json().catch(() => ({}));
-	const lessonId = typeof body.lessonId === 'string' ? body.lessonId : '';
-	const contentUrl = typeof body.contentUrl === 'string' ? body.contentUrl : '';
-	const legacyLessonId = typeof body.legacyLessonId === 'string' ? body.legacyLessonId : '';
-	const status = typeof body.status === 'string' ? body.status : 'in_progress';
+	
+	const lessonId = body.lessonId ? validateLessonOrQuizId(body.lessonId, 'lessonId') : '';
+	const contentUrl = body.contentUrl ? validateContentUrl(body.contentUrl, 'contentUrl') : '';
+	const legacyLessonId = body.legacyLessonId ? validateLessonOrQuizId(body.legacyLessonId, 'legacyLessonId') : '';
+	const status = body.status ? validateStatus(body.status) : 'in_progress';
 	const progressPercentage =
 		status === 'completed' ? 100 : clampProgress(body.progressPercentage ?? body.progress);
 
 	if (!lessonId && !contentUrl) {
 		throw error(400, 'lessonId 或 contentUrl 是必填欄位');
-	}
-
-	if (!validStatuses.has(status)) {
-		throw error(400, 'status 必須是 not_started、in_progress 或 completed');
 	}
 
 	const lesson = lessonId
